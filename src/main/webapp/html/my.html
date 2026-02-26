@@ -7,5 +7,313 @@
 <body>
 <h1>RPG admin panel</h1>
 
+<table id="playersTable" border="1">
+    <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Title</th>
+        <th>Race</th>
+        <th>Profession</th>
+        <th>Level</th>
+        <th>Birthday</th>
+        <th>Banned</th>
+        <th>Edit</th>
+        <th>Delete</th>
+    </tr>
+</table>
+
+<div id="pagination">
+    <label for="pageSizeSelect">Show on page:</label>
+    <select id="pageSizeSelect">
+        <option value="3">3</option>
+        <option value="5">5</option>
+        <option value="10">10</option>
+        <option value="20">20</option>
+    </select>
+
+    <div id="pageButtons" style="display:inline-block; margin-left: 10px;"></div>
+</div>
+
+<h2>Create New Player</h2>
+<div id="createPlayerForm" style="margin-bottom: 20px;">
+    <label>Name (1-12 chars):</label>
+    <input type="text" id="newName" maxlength="12"><br><br>
+
+    <label>Title (1-30 chars):</label>
+    <input type="text" id="newTitle" maxlength="30"><br><br>
+
+    <label>Race:</label>
+    <select id="newRace">
+        <option value="HUMAN">HUMAN</option>
+        <option value="DWARF">DWARF</option>
+        <option value="ELF">ELF</option>
+        <option value="GIANT">GIANT</option>
+        <option value="ORC">ORC</option>
+        <option value="TROLL">TROLL</option>
+        <option value="HOBBIT">HOBBIT</option>
+    </select><br><br>
+
+    <label>Profession:</label>
+    <select id="newProfession">
+        <option value="WARRIOR">WARRIOR</option>
+        <option value="ROGUE">ROGUE</option>
+        <option value="SORCERER">SORCERER</option>
+        <option value="CLERIC">CLERIC</option>
+        <option value="PALADIN">PALADIN</option>
+        <option value="NAZGUL">NAZGUL</option>
+        <option value="WARLOCK">WARLOCK</option>
+        <option value="DRUID">DRUID</option>
+    </select><br><br>
+
+    <label>Level (0-100):</label>
+    <input type="number" id="newLevel" min="0", max="100"><br><br>
+
+    <label>Birthday:</label>
+    <input type="date" id="newBirthday"><br><br>
+
+    <label>Banned:</label>
+    <input type="checkbox" id="newBanned"><br><br>
+
+    <button id="createPlayerBtn">Create player</button>
+</div>
+
+<script>
+    let currentPage = 0;
+    let pageSize = parseInt(document.getElementById("pageSizeSelect").value);
+
+    document.getElementById("pageSizeSelect").addEventListener("change", () => {
+        pageSize = parseInt(document.getElementById("pageSizeSelect").value);
+        currentPage = 0;
+        loadPagination();
+    });
+
+    document.getElementById("createPlayerBtn").addEventListener("click", () => {
+        const birthdayInput = document.getElementById("newBirthday").value;
+        const birthdayDate = new Date(birthdayInput);
+
+        const newPlayer = {
+            name: document.getElementById("newName").value.trim(),
+            title: document.getElementById("newTitle").value.trim(),
+            race: document.getElementById("newRace").value,
+            profession: document.getElementById("newProfession").value,
+            level: parseInt(document.getElementById("newLevel").value),
+            birthday: new Date(birthdayInput).getTime(),
+            banned: document.getElementById("newBanned").checked
+        };
+
+        if (!newPlayer.name || newPlayer.name.length > 12) {
+            alert("Name must be 1-12 characters");
+            return;
+        }
+        if (!newPlayer.title || newPlayer.title.length > 30) {
+            alert("Title must be 1-30 characters");
+            return;
+        }
+        if (isNaN(newPlayer.level) || newPlayer.level < 0 || newPlayer.level > 100) {
+            alert("Level must be between 0 and 100");
+            return;
+        }
+        if (!birthdayInput) {
+            alert("Please select a birthday");
+            return;
+        }
+
+        fetch("/rest/players", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newPlayer)
+        })
+        .then(response => {
+            if (response.ok) {
+                alert("Player created successfully");
+
+                document.getElementById("newName").value = "";
+                document.getElementById("newTitle").value = "";
+                document.getElementById("newRace").selectedIndex = 0;
+                document.getElementById("newProfession").selectedIndex = 0;
+                document.getElementById("newLevel").value = "";
+                document.getElementById("newBirthday").value = "";
+                document.getElementById("newBanned").checked = false;
+
+                loadPagination();
+            } else {
+                alert("Error creating player");
+            }
+        })
+        .catch(error => console.error("Error creating player:", error));
+    });
+
+    function loadPagination() {
+        fetch("rest/players/count")
+            .then(response => response.json())
+            .then(totalCount => {
+                const pageCount = Math.ceil(totalCount / pageSize);
+                const pageButtonsDiv = document.getElementById("pageButtons");
+                pageButtonsDiv.innerHTML = "";
+
+                for (let i = 0; i < pageCount; i++) {
+                    let btn = document.createElement("button");
+                    btn.innerText = i + 1;
+                    btn.style.margin = "2px";
+
+                    if (i === currentPage) btn.disabled = true;
+
+                    btn.addEventListener("click", () => {
+                        currentPage = i;
+                        loadPagination();
+                    });
+
+                    pageButtonsDiv.appendChild(btn);
+                }
+
+                loadPlayers();
+            })
+            .catch(error => console.error("Error counting accounts:", error));
+    }
+
+    function loadPlayers() {
+        fetch(`/rest/players?pageNumber=${currentPage}&pageSize=${pageSize}`)
+            .then(response => response.json())
+            .then(data => {
+                let table = document.getElementById("playersTable");
+
+                table.innerHTML = `
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Title</th>
+                        <th>Race</th>
+                        <th>Profession</th>
+                        <th>Level</th>
+                        <th>Birthday</th>
+                        <th>Banned</th>
+                        <th>Edit</th>
+                        <th>Delete</th>
+                    </tr>
+                `;
+
+                data.forEach(player => {
+                    let row = table.insertRow();
+                    row.insertCell(0).innerText = player.id;
+                    row.insertCell(1).innerText = player.name;
+                    row.insertCell(2).innerText = player.title;
+                    row.insertCell(3).innerText = player.race;
+                    row.insertCell(4).innerText = player.profession;
+                    row.insertCell(5).innerText = player.level;
+                    row.insertCell(6).innerText = new Date(player.birthday).toLocaleDateString();
+                    row.insertCell(7).innerText = player.banned;
+
+                    let editCell = row.insertCell(8);
+
+                    let editImg = document.createElement("img");
+                    editImg.src = "img/edit.png";
+                    editImg.className = "icon";
+                    editImg.title = "Edit";
+                    editImg.addEventListener("click", () => {
+                        editPlayer(row, player);
+                    });
+
+                    editCell.appendChild(editImg);
+
+                    let deleteCell = row.insertCell(9);
+
+                    let deleteImg = document.createElement("img");
+
+                    deleteImg.src = "img/delete.png";
+                    deleteImg.className = "icon";
+                    deleteImg.title = "Delete";
+                    deleteImg.addEventListener("click", () => {
+                        deletePlayer(player.id);
+                    });
+
+                    deleteCell.appendChild(deleteImg);
+                });
+            })
+            .catch(error => console.error("Error:", error));
+    }
+
+    function deletePlayer(playerId) {
+        if (!confirm(`Delete player ID: ${playerId}?`)) return;
+
+        fetch(`/rest/players/${playerId}`, {
+            method: "DELETE"
+        })
+        .then(response => {
+            if (response.ok) {
+                alert(`Player ID ${playerId} deleted`);
+                loadPagination();
+            } else if (response.status === 404) {
+                alert("Player was not found");
+            } else {
+                alert("Error deleting");
+            }
+        })
+        .catch(error => console.error("Error deleting:", error));
+    }
+
+    function editPlayer(row, player) {
+        const editCell = row.cells[8];
+        const deleteCell = row.cells[9];
+        const editImg = editCell.querySelector("img");
+        const deleteImg = deleteCell.querySelector("img");
+
+        if (editImg.title === "Edit") {
+            deleteImg.style.display = "none";
+
+            editImg.src = "img/save.png";
+            editImg.title = "Save";
+
+            for (let i = 1; i <= 4; i++) {
+                const cell = row.cells[i];
+                const value = cell.innerText;
+                cell.innerHTML = `<input type="text" value="${value}" style="width: 100%;">`;
+            }
+
+            const bannedCell = row.cells[7];
+            const bannedText = bannedCell.innerText.trim().toLowerCase();
+            const bannedValue = bannedText === "true";
+            bannedCell.innerHTML = `<input type="checkbox" ${bannedValue ? "checked" : ""}>`;
+
+        } else if (editImg.title === "Save") {
+            const updatedInfo = {
+                name: row.cells[1].querySelector("input").value,
+                title: row.cells[2].querySelector("input").value,
+                race: row.cells[3].querySelector("input").value,
+                profession: row.cells[4].querySelector("input").value,
+                banned: row.cells[7].querySelector("input").checked
+            };
+
+            fetch(`/rest/players/${player.id}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updatedInfo)
+            })
+            .then(response => {
+                if (response.ok) {
+                    alert("Player updated successfully");
+
+                    row.cells[1].innerText = updatedInfo.name;
+                    row.cells[2].innerText = updatedInfo.title;
+                    row.cells[3].innerText = updatedInfo.race;
+                    row.cells[4].innerText = updatedInfo.profession;
+                    row.cells[7].innerText = updatedInfo.banned;
+
+                    deleteImg.style.display = "";
+                    editImg.src = "img/edit.png";
+                    editImg.title = "Edit";
+                } else {
+                    alert("Error updating player");
+                }
+            })
+            .catch(error => console.error("Error updating player:", error));
+        }
+    }
+
+    window.onload = loadPagination;
+</script>
+
+
+<button onclick="loadPlayers()">Load players</button>
+
 </body>
 </html>
